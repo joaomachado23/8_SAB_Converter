@@ -1,0 +1,24 @@
+Change Component Footprint: Designator=C2 Old Footprint=CAPACITOR_0805 New Footprint=C1206
+Change Component Footprint: Designator=C3 Old Footprint=CAPACITOR_0805 New Footprint=C1206
+Change Component Footprint: Designator=C4 Old Footprint=CAPACITOR_0805 New Footprint=C1206
+Change Component Footprint: Designator=C5 Old Footprint=CAPACITOR_0805 New Footprint=C1206
+Change Component Footprint: Designator=C6 Old Footprint=CAPACITOR_0805 New Footprint=C1206
+Change Component Footprint: Designator=C7 Old Footprint=CAPACITOR_0805 New Footprint=C1206
+Change Component Footprint: Designator=C8 Old Footprint=CAPACITOR_0805 New Footprint=C1206
+Change Component Footprint: Designator=C9 Old Footprint=CAPACITOR_0805 New Footprint=C1206
+Change Component Footprint: Designator=C10 Old Footprint=CAPACITOR_0805 New Footprint=C1206
+Change Component Footprint: Designator=C11 Old Footprint=CAPACITOR_0805 New Footprint=C1206
+Change Component Footprint: Designator=C12 Old Footprint=CAPACITOR_0805 New Footprint=C1206
+Change Component Footprint: Designator=C13 Old Footprint=CAPACITOR_0805 New Footprint=T491C
+Change Component Footprint: Designator=C14 Old Footprint=CAPACITOR_0805 New Footprint=T491C
+Change Component Footprint: Designator=R1 Old Footprint=RESISTOR_0805 New Footprint=RESC3216X75N
+Change Component Footprint: Designator=R2 Old Footprint=RESISTOR_0805 New Footprint=RESC3216X75N
+Change Component Footprint: Designator=R3 Old Footprint=RESISTOR_0805 New Footprint=RESC3216X75N
+Change Component Footprint: Designator=R4 Old Footprint=RESISTOR_0805 New Footprint=RESC3216X75N
+Change Component Footprint: Designator=R5 Old Footprint=RESISTOR_0805 New Footprint=RESC3216X75N
+Change Component Footprint: Designator=R6 Old Footprint=RESISTOR_0805 New Footprint=RESC3216X75N
+Change Component Footprint: Designator=R7 Old Footprint=RESISTOR_0805 New Footprint=RESC3216X75N
+Change Component Footprint: Designator=R8 Old Footprint=RESISTOR_0805 New Footprint=RESC3216X75N
+Change Component Footprint: Designator=R9 Old Footprint=RESISTOR_0805 New Footprint=RESC3216X75N
+Change Component Comment : Designator=R1 Old Comment=1k New Comment=10
+Change Component Comment : Designator=R5 Old Comment=1k New Comment=10

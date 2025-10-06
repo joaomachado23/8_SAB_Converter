@@ -1,0 +1,165 @@
+PARTS LIST
+
+100nF             CAPACITOR_0805  C?
+10nF              CAPACITOR_0805  C?
+1uF               Capacitor 0805 polaryzedC?
+1uF               Capacitor 0805 polaryzedC?
+1uF               Capacitor 0805 polaryzedC?
+2.2uF             CAPACITOR_0805  C?
+10uF              CAPACITOR_0805  C?
+47uF              CAPACITOR_1210  C?
+100nF             CAPACITOR_0805  C?
+1uF               CAPACITOR_0805  C?
+100nF             CAPACITOR_0805  C?
+100nF             CAPACITOR_0805  C?
+100nF             CAPACITOR_0805  C?
+Capacitor polaryzed                C?
+Capacitor                         C?
+Capacitor                         C?
+Capacitor                         C?
+Capacitor                         C?
+100nF             CAPACITOR_0805  C?
+100nF             CAPACITOR_0805  C?
+conector 2Pin     NC6P10802       CN?
+conector 2Pin     NC6P10802       CN?
+STPS41L30CG-TR    STPS41L30CGTR   D?
+STPS41L30CG-TR    STPS41L30CGTR   D?
+STPS41L30CG-TR    STPS41L30CGTR   D?
+STPS41L30CG-TR    STPS41L30CGTR   D?
+Schottky Diode                    D?
+Diode                             D?
+Diode                             D?
+ADUM4221-1ARIZ    SOIC127P1030X264-16NIC?
+TSX712IDT         SO-8            IC?
+TS3320ACR         SOT323          IC?
+Linear Regulator  SOT-223-4       IC?
+L6982N50DR        SO-8            IC?
+ADUM4221-1ARIZ    SOIC127P1030X264-16NIC?
+NC6-P108-02       NC6P10802       J?
+NC6-P108-02       NC6P10802       J?
+Conector 1x3P     Conector 1x3 ScrewJ?
+1uH               Inductor 1005   L?
+PDSE1-S15-S15-S   PDSE1-S15-S15-S PSU?
+Mosfet                            Q?
+Mosfet                            Q?
+Mosfet                            Q?
+Mosfet                            Q?
+290               RESISTOR_0805   R?
+13.2k             RESISTOR_0805   R?
+10k               RESISTOR_0805   R?
+13.2k             RESISTOR_0805   R?
+10k               RESISTOR_0805   R?
+Resistor                          R?
+Resistor                          R?
+Resistor                          R?
+Resistor                          R?
+Resistor                          R?
+Resistor                          R?
+10k               RESISTOR_0805   R?
+10k               RESISTOR_0805   R?
+PL300-100L        PL300100L       T?
+TestPoint         TestPoint       TP?
+LTSR_25-NP        LTSR25-NP       U?
+Fuse              Fuse 1206       X?
+EOS
+NET LIST
+
+NODENAME vref             $
+    C?         1  IC?        2  R?         1
+NODENAME PWM_B            $
+    IC?        1
+NODENAME PWM_A            $
+    IC?        1
+NODENAME out-             $
+    CN?        2
+NODENAME out+             $
+    CN?        1
+NODE     62               $
+    U?         3  U?         5  U?         6
+NODE     57               $
+    T?         3  T?         4
+NODE     53               $
+    J?         1  Q?         2  Q?         2
+NODE     51               $
+    IC?       15  R?         1
+NODE     52               $
+    IC?       15  R?         1
+NODE     45               $
+    IC?       10  R?         1
+NODE     46               $
+    IC?       10  R?         1
+NODE     40               $
+    IC?        3  R?         1  R?         2
+NODE     37               $
+    IC?        2  R?         1  R?         2
+NODE     36               $
+    IC?        1  R?         1  R?         2
+NODE     33               $
+    D?         2  R?         2
+NODE     34               $
+    D?         2  R?         2
+NODE     31               $
+    D?         1  D?         2  D?         3  T?        11
+NODE     32               $
+    D?         1  D?         2  D?         3  T?         7
+NODE     30               $
+    CN?        1  X?         1
+NODE     26               $
+    C?         2  D?         1  D?         1  D?         3  D?         3  J?         2
+NODE     27               $
+    C?         2  IC?        1  L?         1
+NODE     28               $
+    C?         2  IC?       16  R?         1
+NODE     29               $
+    C?         2  IC?       16  R?         1
+NODE     23               $
+    C?         1  D?         2  D?         2  J?         1
+NODE     24               $
+    C?         1  IC?        3
+NODE     25               $
+    C?         1  IC?        2
+NODENAME Isense2          $
+    U?         4
+NODENAME Isense1          $
+    U?         1  U?         2
+NODENAME iRead            $
+    R?         1  TP?        1  U?         8
+NODENAME I_SENSE-         $
+    Q?         3  Q?         3
+NODENAME I_SENSE+         $
+    J?         2
+NODENAME i_adc            $
+    C?         1  R?         2
+NODENAME GND_P            $
+    C?         1  C?         1  C?         2  IC?        9  IC?        9  PSU?       3
+NODENAME gnd_bT           $
+    C?         1  IC?       14  Q?         2  Q?         3  T?         5
+NODENAME gnd_aT           $
+    C?         1  IC?       14  Q?         2  Q?         3  T?         2
+NODENAME GND              $
+    C?         2  C?         2  C?         2  C?         2  C?         2  C?         2  C?         2  C?         2  C?         2  C?         2  C?         2  C?         2  C?         2  D?         1  IC?        1  IC?        3  IC?        4  IC?        4  IC?        4  IC?        6  IC?        8  J?         2  PSU?       1  R?         1  R?         1  R?         2  U?         9
+NODENAME gate_bT          $
+    Q?         1  R?         2
+NODENAME gate_bB          $
+    Q?         1  R?         2
+NODENAME gate_aT          $
+    Q?         1  R?         2
+NODENAME gate_aB          $
+    Q?         1  R?         2
+NODENAME DIS              $
+    IC?        5  IC?        5
+NODENAME AC-2             $
+    CN?        2
+NODENAME AC-1             $
+    X?         2
+NODENAME -15v             $
+    J?         3
+NODENAME +15V_P           $
+    C?         1  C?         2  C?         2  D?         1  D?         1  IC?       11  IC?       11  PSU?       4
+NODENAME +15v             $
+    C?         1  C?         1  IC?        5  IC?        7  J?         1  PSU?       2
+NODENAME +5v              $
+    C?         1  C?         1  C?         1  C?         1  C?         1  C?         1  IC?        3  IC?        3  IC?        3  IC?        4  IC?        8  IC?        8  IC?        8  L?         2  U?        10
+NODENAME +3V3             $
+    C?         1  C?         1  IC?        1  IC?        2  IC?        4
+EOS

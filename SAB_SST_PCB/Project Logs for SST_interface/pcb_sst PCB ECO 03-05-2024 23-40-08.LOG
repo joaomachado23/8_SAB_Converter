@@ -1,0 +1,3 @@
+Added Pin To Net: NetName=+3.3V Pin=IC5-8
+Added Pin To Net: NetName=+3.3V Pin=IC8-8
+Added Member To Class: ClassName=control_sensor_driver Member=Component IC5 ADUM4221-1ARIZ
