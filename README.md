@@ -1,6 +1,6 @@
 # 8_SAB_Converter
 
-*Título do projeto*: "Estudos Computacionais sobre Solid-State Transformer (SST)"
+**Título do projeto**: "Estudos Computacionais sobre Solid-State Transformer (SST)"
 
 O objetivo deste projeto era o desenvolvimento, simulação, conceção de PCB, montagem e testes de um protótipo de conversor baseado numa topologia Single Active Bridge (SAB) para integração em redes híbridas CA/CC. O relatório final contém a motivação, estado-da-arte, requisitos, simulações, design da PCB, processo de montagem, software de controlo e resultados experimentais.
 
