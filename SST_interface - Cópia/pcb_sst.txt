@@ -1,0 +1,5 @@
+Board Information Report
+Filename     : C:\Users\Diego\OneDrive - Universidade do Minho\Ambiente de Trabalho\uni\4 ano\github.com\SST_Interface\sst_pcb\SST_interface\pcb_sst.PcbDoc
+Date         : 05/05/2024
+Time         : 22:31:02
+Time Elapsed : 00:00:00
