@@ -1,0 +1,439 @@
+//Includes
+#include "DSP28x_Project.h"
+#include "F2802x_Device.h"
+#include "string.h"
+#include "Math.h"
+#include "stdlib.h"
+
+//Defines
+#define DC_MAX 150                 //Maximum value for the DC
+#define DC_MIN 0                  //Minimum value for the DC
+
+#define Timer0_PRD 1200            // Timer0_PRD = (Período amostragem desejado * Clk)/Prscl
+                                   // Para Período = 1/50kHz = 20 us -> Timer0_PRD = 20us * 60MHz / 1 = 1200
+
+#define PWM_Period_CCCA 300        // PWM_Period_CCCA = 60 MHz/200 kHz = 300
+
+#define PWM_Period_StepUp 300      // PWM_Period_StepUp = 60 MHz/200 kHz = 300
+
+#define Vref_DC_Link 12
+#define Vref_DC_Link_MAX 25
+
+//*****************************************
+//*         Variáveis Globais             *
+//*****************************************
+// SCI - Serial Communication Interface
+volatile char charUSART[10];
+char s[4];
+volatile unsigned char receive_sci = 0;             //volatile -> usados dentro de interrupt
+
+// Timer0
+volatile unsigned char flag_ADC = 0;                //volatile -> usados dentro de interrupt
+volatile unsigned char flag_Timer0 = 0;             //volatile -> usados dentro de interrupt
+volatile unsigned char flag_atualiza_Duty = 0;      //volatile -> usados dentro de interrupt
+
+//PWM
+int valor_Atoi = 0;
+char flag_periodic_sample_low = 0, duty_c[4];
+
+//Controlo Geral
+char controlo = 0, Stop = 0;
+
+unsigned int Vref_RAW = 0;
+
+unsigned int sensorSampleV = 0;
+
+double erro = 0;
+double erro_int = 0;
+
+double KP = 0.1;
+double KI = 0.001;
+
+//*****************************************
+//*   Prototipos das funcoes utilizadas   *
+//*****************************************
+// isr
+interrupt void sciaRx_isr(void);
+interrupt void Timer0_isr(void);
+
+// config functions
+void Config_sci(void);
+void Config_gpio(void);
+void Config_Timer0(void);
+void Config_EPwm_CCCA_PI(void);
+void Config_ADC(void);
+void scia_xmit(char*);
+int limites(int, int, int);
+void Atualiza_PWM(unsigned int, unsigned int);
+void Atualiza_ADC(void);
+unsigned int getRawADCValueVref(unsigned int, unsigned int);
+void cleanBuffer(volatile char*); //Permite limpar um array, isto é, todas as posições ficam a '\0'
+
+int main(void)
+{
+    // Step 1. Initialize System Control:
+    // PLL, WatchDog, enable Peripheral Clocks
+    InitSysCtrl();
+
+    // Step 2. Initialize Funcs
+    InitGpio();
+
+    // Step 3. Clear all interrupts and initialize PIE vector table:
+    // Disable CPU interrupts
+    DINT;
+
+    // Initialize PIE control registers to their default state.
+    // The default state is all PIE interrupts disabled and flags are cleared.
+    InitPieCtrl();
+
+    // Disable CPU interrupts and clear all CPU interrupt flags:
+    IER = 0x0000;
+    IFR = 0x0000;
+
+    // Initialize the PIE vector table with pointers to the shell Interrupt Service Routines (ISR).
+    InitPieVectTable();
+
+
+    EALLOW;
+    PieVectTable.SCIRXINTA = &sciaRx_isr;
+    PieVectTable.TINT0 = &Timer0_isr;
+    EDIS;
+
+    //Step 5. User Code
+    Config_sci();
+    Config_gpio();
+    Config_Timer0();
+    Config_ADC();
+
+    Config_EPwm_CCCA_PI();
+
+    Vref_RAW = getRawADCValueVref(Vref_DC_Link, Vref_DC_Link_MAX);
+
+    CpuTimer0Regs.TCR.all = 0x4001; //Start Timer
+
+    //Exemplo de funcionamento USART - Apagar código depois
+    PieCtrlRegs.PIECTRL.bit.ENPIE = 1;
+    PieCtrlRegs.PIEIER9.bit.INTx1 = 1;
+    PieCtrlRegs.PIEIER1.bit.INTx7 = 1;
+    IER = 0x101;
+    EINT;
+    ERTM;
+
+    cleanBuffer(charUSART);
+    cleanBuffer((volatile char*)s);
+    cleanBuffer((volatile char*)duty_c);
+
+    while(1)
+    {
+        if(receive_sci)
+        {
+            receive_sci = 0;
+
+            switch(charUSART[0])
+            {
+        
+                case 'o': //Ligar o controlo
+                case 'O':
+
+                    scia_xmit("Controlo Ativo");
+                    s[0] = 0x0A;
+                    s[1] = '\0';
+                    scia_xmit(s);
+                    cleanBuffer(charUSART);
+                    EPwm2Regs.DBCTL.bit.POLSEL = DB_ACTV_HIC;
+                    EPwm3Regs.DBCTL.bit.POLSEL = DB_ACTV_HIC;
+                    EPwm2Regs.AQCSFRC.bit.CSFA = 0;
+                    EPwm2Regs.AQCSFRC.bit.CSFB = 0;
+                    EPwm3Regs.AQCSFRC.bit.CSFA = 0;
+                    EPwm3Regs.AQCSFRC.bit.CSFB = 0;
+                    controlo = 1;
+                    Stop = 0;
+                    break;
+
+                case 'p': //Para o controlo
+                case 'P':
+
+                    scia_xmit("Controlo Desligado");
+                    s[0] = 0x0A;
+                    s[1] = '\0';
+                    scia_xmit(s);
+                    cleanBuffer(charUSART);
+                    Stop = 1;
+                    controlo = 0;
+                    break;
+
+                default:
+                    cleanBuffer(charUSART);
+                    break;
+            }
+        }
+
+        if (Stop)
+        {
+            EPwm2Regs.DBCTL.bit.POLSEL = DB_ACTV_HI;
+            EPwm3Regs.DBCTL.bit.POLSEL = DB_ACTV_HI;
+            EPwm2Regs.AQCSFRC.bit.CSFA = 1;
+            EPwm2Regs.AQCSFRC.bit.CSFB = 1;
+            EPwm3Regs.AQCSFRC.bit.CSFA = 1;
+            EPwm3Regs.AQCSFRC.bit.CSFB = 1;
+        }
+
+        if (flag_ADC && controlo && !Stop)
+        {
+            flag_ADC = 0;
+            Atualiza_ADC();
+            Atualiza_PWM(Vref_RAW, sensorSampleV);
+        }
+    }
+}
+
+//Funcao de interrupt da USART (Serial Communication)
+interrupt void sciaRx_isr(void)
+{
+    static unsigned char i = 0;
+
+    charUSART[i] = SciaRegs.SCIRXBUF.all;
+
+    if(charUSART[i++] == 0x0A)
+    {
+        charUSART[i] = '\0';
+        receive_sci = 1;
+        i = 0;
+    }
+
+
+    SciaRegs.SCIFFRX.bit.RXFFOVRCLR=1;     //Limpa a flag de OF
+    SciaRegs.SCIFFRX.bit.RXFFINTCLR=1;     //Limpa a flag de ISR
+    PieCtrlRegs.PIEACK.all |= 0x100;       //Dar o ack da interrupt
+}
+
+
+//Funcao de interrupt do timer 0
+interrupt void Timer0_isr(void)
+{
+    AdcRegs.ADCSOCFRC1.all = 0x03;
+    flag_ADC = 1;
+    PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
+}
+
+//Funcao de configuracao da SCI
+void Config_sci(void)
+{
+    SciaRegs.SCICCR.all = 0x0007;           // 1 stop bit, No loopback, No parity, 8 char bits, async mode, idle-line protocol
+
+    // Enable TX, RX, internal SCICLK
+    SciaRegs.SCICTL1.all = 0x0003;
+
+    // Enable TXRDY interrupt and RXRDY/BRKDT interrupt
+    SciaRegs.SCICTL2.bit.TXINTENA = 1;
+    SciaRegs.SCICTL2.bit.RXBKINTENA = 1;
+
+    // Set baud rate to 115200 (assuming LSPCLK = 15 MHz) (Para 9600bps: H = x00 e L = xC2)
+    SciaRegs.SCIHBAUD = 0x00;
+    SciaRegs.SCILBAUD = 0x0F;
+
+    // Enable and configure SCI FIFOs
+    SciaRegs.SCIFFTX.all = 0xC001;          // Enable TX FIFO, reset TX FIFO, set TX FIFO level to 16
+    SciaRegs.SCIFFRX.all = 0x0021;          // Enable RX FIFO, reset RX FIFO, set RX FIFO level to 16
+    SciaRegs.SCIFFCT.all = 0x00;            // Clear all FIFO control bits
+
+    // Relinquish SCI from reset
+    SciaRegs.SCICTL1.all = 0x0023;
+
+    // Enable SCI FIFO operation
+    SciaRegs.SCIFFTX.bit.TXFIFOXRESET = 1;
+    SciaRegs.SCIFFRX.bit.RXFIFORESET = 1;
+}
+
+//Funcao de configuracao do GPIO
+void Config_gpio(void)
+{
+    EALLOW;
+
+    //Configurar gpio para toogle (exemplo)
+    GpioCtrlRegs.GPAPUD.bit.GPIO0 = 0;         //Dá disable à resistência de pull-up do gpio0
+    GpioDataRegs.GPASET.bit.GPIO0 = 1;         //Dá set ao pino a 1 (High-lvl output)
+    GpioCtrlRegs.GPAMUX1.bit.GPIO0 = 0;        //Configura o GPIO0 como general-purpose I/O
+    GpioCtrlRegs.GPADIR.bit.GPIO0 = 1;         //Configura o GPIO0 como output (dir -> direção)
+    GpioDataRegs.GPACLEAR.bit.GPIO0 = 1;       //Dá reset ao pino (0 -> low-level output)
+
+    EDIS;
+
+    //Configurar gpio para SCI
+    InitSciGpio();
+
+    //Config gpio para ePWM
+    InitEPwm2Gpio();
+    InitEPwm3Gpio();
+}
+
+//Funcao de configuracao do Timer 0
+void Config_Timer0(void)
+{
+    InitCpuTimers();
+
+    EALLOW;
+
+    CpuTimer0Regs.PRD.all = Timer0_PRD;       //Dá set ao período do timer 0 (é necessário definir)
+    CpuTimer0Regs.TCR.bit.TSS = 1;            //Dá stop ao timer, caso esteja a correr
+    CpuTimer0Regs.TPR.all = 0x0;              //Dá set ao prescaler (no caso, não tem prescaler, logo a Fcontagem = 60MHz = SYSCLKOUT)
+
+    CpuTimer0Regs.TCR.bit.TRB = 1;            //Reload ao timer com o valor do periodo especificado no registo PRD
+    CpuTimer0Regs.TCR.bit.FREE = 0;           //Para depois do TIMH:TIM decrementar para 0 (soft stop)
+    CpuTimer0Regs.TCR.bit.SOFT = 1;           //This is for emulation mode, specifying soft-stopping the timer when halted
+    CpuTimer0Regs.TCR.bit.TIE = 1;            //Ativa Interrupt timer 0
+
+    EDIS;
+
+    //CpuTimer0Regs.TCR.bit.TSS = 0;            //Start ao timer 0
+}
+
+void Config_EPwm_CCCA_PI(void)
+{
+    // PWM_Period_StepUp = 60 MHz / 200 kHz = 300
+
+    EPwm2Regs.TBPRD = PWM_Period_CCCA/2;        // Period = 1500 TBCLK counts
+    EPwm2Regs.TBPHS.half.TBPHS = 0;           // Set Phase register to zero
+    EPwm2Regs.TBCTR = 0;                      // Clear TB counter
+
+    EPwm2Regs.TBCTL.bit.CTRMODE = TB_COUNT_UPDOWN; // Count mode up-down
+    EPwm2Regs.TBCTL.bit.SYNCOSEL = TB_CTR_ZERO;    // Synchronize ePWM on CTR = zero
+    EPwm2Regs.TBCTL.bit.PHSEN = TB_DISABLE;        // Disable phase loading
+    EPwm2Regs.TBCTL.bit.HSPCLKDIV = TB_DIV1;       // TBCLK = SYSCLK
+    EPwm2Regs.TBCTL.bit.CLKDIV = TB_DIV1;
+    EPwm2Regs.TBCTL.bit.PRDLD = TB_SHADOW;         // Period autoreload
+
+    // Setup shadow register load on ZERO
+    EPwm2Regs.CMPCTL.bit.SHDWAMODE = CC_SHADOW;
+    EPwm2Regs.CMPCTL.bit.SHDWBMODE = CC_SHADOW;
+    EPwm2Regs.CMPCTL.bit.LOADAMODE = CC_CTR_ZERO;  // Load on CTR = Zero
+    EPwm2Regs.CMPCTL.bit.LOADBMODE = CC_CTR_ZERO;  // Load on CTR = Zero
+
+    // Set compare values
+    EPwm2Regs.CMPA.half.CMPA = 0;                // Set appropriate compare value for desired duty cycle
+
+    // Set actions
+    EPwm2Regs.AQCTLA.bit.CAU = AQ_CLEAR;          // Clear PWM2A on event a, up count
+    EPwm2Regs.AQCTLA.bit.ZRO = AQ_SET;            // Set PWM2A on event ZRO, up count
+
+    // Dead time configuration
+    EPwm2Regs.DBCTL.bit.OUT_MODE = DB_FULL_ENABLE; // Enable rising and falling edge delay
+    EPwm2Regs.DBCTL.bit.POLSEL = DB_ACTV_HIC;      // Active high complementary
+
+
+    // EPwm3 configuration is similar to EPwm2
+    // Copy EPwm2 settings to EPwm3, except synchronization
+
+    EPwm3Regs.TBPRD = EPwm2Regs.TBPRD;          // Period = 1500 TBCLK counts
+    EPwm3Regs.TBPHS.half.TBPHS = 150;           // Set Phase register to zero
+    EPwm3Regs.TBCTR = EPwm2Regs.TBCTR;          // Clear TB counter
+
+    EPwm3Regs.TBCTL.all = EPwm2Regs.TBCTL.all;  // Copy TBCTL settings
+    EPwm3Regs.TBCTL.bit.SYNCOSEL = TB_SYNC_IN;  // Synchronize ePWM on CTR = zero
+
+    // Setup shadow register load on ZERO
+    EPwm3Regs.CMPCTL.all = EPwm2Regs.CMPCTL.all; // Copy CMPCTL settings
+    EPwm3Regs.AQCTLA.all = EPwm2Regs.AQCTLA.all; // Copy AQCTLA settings
+
+    // Dead time configuration
+    EPwm3Regs.DBCTL.all = EPwm2Regs.DBCTL.all;  // Copy DBCTL settings
+    EPwm3Regs.DBRED = EPwm2Regs.DBRED;          // Set 100 clock ticks of rising edge dead time
+    EPwm3Regs.DBFED = EPwm2Regs.DBFED;          // Set 100 clock ticks of falling edge dead time
+
+    // Set compare values
+    EPwm3Regs.CMPA.half.CMPA = 0;  // Set compare value to half the period for 50% duty cycle
+    EPwm2Regs.CMPA.half.CMPA = 0;
+    EPwm2Regs.TBCTL.bit.PHSEN = TB_ENABLE;
+    EPwm3Regs.TBCTL.bit.PHSEN = TB_ENABLE;
+
+    /* Additional settings to force a continuous low on output A and B
+    EPwm2Regs.DBCTL.bit.POLSEL = DB_ACTV_HI;    // Forces a continuous low on output A
+    EPwm3Regs.DBCTL.bit.POLSEL = DB_ACTV_HI;    // Forces a continuous low on output B
+
+    EPwm2Regs.AQCSFRC.bit.CSFA = 0x01;          // Forces a continuous low on output A
+    EPwm3Regs.AQCSFRC.bit.CSFA = 0x01;          // Forces a continuous low on output A
+    EPwm2Regs.AQCSFRC.bit.CSFB = 0x01;          // Forces a continuous low on output B
+    EPwm3Regs.AQCSFRC.bit.CSFB = 0x01;          // Forces a continuous low on output B*/
+}
+
+//Funcao de config do ADC
+void Config_ADC(void)
+{
+    EALLOW;
+    AdcRegs.ADCCTL1.bit.ADCBGPWD= 1;
+    AdcRegs.ADCCTL1.bit.ADCREFPWD = 1;
+    AdcRegs.ADCCTL1.bit.ADCPWDN= 1;
+    AdcRegs.ADCCTL1.bit.INTPULSEPOS = 1;
+    DELAY_US(1000);
+    AdcRegs.ADCSOC0CTL.bit.CHSEL= 0; // Channel select -> Escolher entrada ---> ADCINA0
+    AdcRegs.ADCSOC0CTL.bit.ACQPS= 6; // Número de ciclos de conversão
+    AdcRegs.ADCSOC0CTL.bit.TRIGSEL = 1; // Trigger -> timer/ePWM/software
+    AdcRegs.ADCSOC1CTL.bit.CHSEL = 1;  // Channel select -> Escolher entrada
+    AdcRegs.ADCSOC1CTL.bit.ACQPS = 6; // Número de ciclos de conversão
+    AdcRegs.ADCSOC1CTL.bit.TRIGSEL = 1;  // Trigger -> timer/ePWM/software
+    AdcRegs.INTSEL1N2.bit.INT1CONT = 0;
+    AdcRegs.INTSEL1N2.bit.INT1SEL = 1;
+    AdcRegs.INTSEL1N2.bit.INT1E = 1;
+    EDIS;
+}
+
+//Funcoes auxiliar da SCI
+void scia_xmit(char* string)
+{
+    int index = 0;
+
+    while(string[index] != '\0')
+    {
+        while(((SciaRegs.SCIFFTX.bit.TXFFST != 1) & (SciaRegs.SCICTL2.bit.TXEMPTY != 0)) == 0);
+        SciaRegs.SCITXBUF = string[index];
+        index++;
+    }
+}
+
+void cleanBuffer(volatile char* buffer)
+{
+    unsigned char inc = 0;
+
+    for(inc = 0; inc < sizeof(buffer); inc++)
+        buffer[inc] = '\0';
+}
+
+int limites(int valor, int limite_max, int limite_min)
+{
+    if(valor > limite_max)
+        valor = limite_max;
+    if(valor < limite_min)
+        valor = limite_min;
+
+    return valor;
+}
+
+void Atualiza_PWM(unsigned int Vref_RAW, unsigned int Vsample_RAW)
+{
+    static int new_DC = 0;
+
+    erro = Vref_RAW - Vsample_RAW;
+    erro_int += erro;
+
+    new_DC = KP * erro + KI * erro_int;
+
+    new_DC = limites(new_DC, DC_MAX, DC_MIN);
+    EPwm2Regs.CMPA.half.CMPA = new_DC;
+    EPwm3Regs.CMPA.half.CMPA = EPwm2Regs.CMPA.half.CMPA;
+}
+
+void Atualiza_ADC(void)
+{
+    while(AdcRegs.ADCINTFLG.bit.ADCINT1 == 0){}
+    AdcRegs.ADCINTFLGCLR.bit.ADCINT1 = 1;
+    sensorSampleV = AdcResult.ADCRESULT0;
+
+}
+
+unsigned int getRawADCValueVref(unsigned int Vref, unsigned int Vref_max)
+{
+    if (Vref <= Vref_max)
+        return ((Vref*3722)/25);
+    else
+        return 0;
+}
